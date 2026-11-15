@@ -38,7 +38,7 @@ panel.innerHTML = [
 '<div class="status" id="srt-status">Looking for the Sparx Reader area…</div>',
 '<div class="row"><button id="srt-explain">Explain excerpt</button><button class="secondary" id="srt-detect">Detect question</button></div>',
 '<div class="status" id="srt-question">No question detected yet.</div>',
-'<button id="srt-hint" style="width:100%" disabled>Get a guided hint</button>',
+'<button id="srt-hint" style="width:100%" disabled>Send question to Gemini</button>',
 '<div class="row"><button class="secondary" id="srt-clear">Clear result</button></div>',
 '<div class="result" id="srt-result">Gemini explanation and hints appear here.</div>'
 ].join("");
@@ -272,13 +272,14 @@ $("srt-hint").addEventListener("click", async () => {
   $("srt-hint").disabled = true;
   $("srt-explain").disabled = true;
   $("srt-test").disabled = true;
-  setStatus("Gemini is preparing a guided hint…");
-  setResult("Working on a hint. It will explain the idea and guide your next step without giving a checkpoint answer.");
-  const prompt = "You are a patient school tutor. The student is looking at a live learning question. Do NOT give the final answer, calculate the final result, identify the correct multiple-choice option, or tell them what to enter. Instead: (1) explain what the question is asking in simple language, (2) identify the relevant concept or formula, (3) give one small first-step hint, and (4) ask the student to try the next step. If the captured text is not actually a question, say so and explain the relevant passage. Keep it concise and age-appropriate.\\n\\nVisible question and nearby context:\\n" + question;
+  setStatus("Sending the passage, question and visible choices to Gemini…");
+  setResult("Gemini is reading the captured text and preparing a guided explanation.");
+  const passage = visibleExcerpt() || "(No separate reading passage was detected on screen.)";
+  const prompt = "You are a patient, age-appropriate study tutor. The student has manually scrolled to a question and chosen to send the visible material. Read the material below. Explain what the question is testing, clarify the relevant idea, and give a short hint that helps the student reason through the choices. Do not select an answer, output a one-word answer, or tell the student what to enter. If answer choices are included, explain what each choice means without identifying the correct one. If the capture is incomplete, say what is missing.\\n\\nTEXT:\\n" + passage + "\\n\\nQUESTION AND NEARBY CONTEXT:\\n" + question + "\\n\\nANSWERS (if visible in the captured context):\\nUse the answer choices included in the question context above; do not invent any choices.";
   try {
     const answer = await requestGemini(prompt);
     setResult(answer);
-    setStatus("Guided hint ready. Work through the next step yourself.");
+    setStatus("Gemini received the passage and question context. Review the explanation and work through the choices.");
   } catch (error) {
     setResult("Request failed: " + (error.message || String(error)));
     setStatus("Gemini request failed. See the result box for details.");
