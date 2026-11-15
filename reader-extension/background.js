@@ -5,7 +5,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   (async () => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
+    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
       const model = String(message.model || "").trim();
       const apiKey = String(message.apiKey || "").trim();
@@ -48,7 +48,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({
         ok: false,
         error: timedOut
-          ? "Gemini took longer than 25 seconds. Check your connection and try again."
+          ? "Gemini took longer than 15 seconds. Check your connection and try again."
           : (error && error.message ? error.message : String(error))
       });
     } finally {
