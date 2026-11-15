@@ -130,10 +130,10 @@ function isVisible(element) {
 }
 function detectQuestion() {
   const candidates = [...document.querySelectorAll("h1,h2,h3,p,div,span,label")];
-  const questionWords = /\\b(what|which|who|where|when|why|how|calculate|work out|find|write down|identify|select|explain)\\b/i;
+  const questionWords = /\b(what|which|who|where|when|why|how|calculate|work out|find|write down|identify|select|explain)\b/i;
   const found = candidates.find(element => {
     if (!isVisible(element)) return false;
-    const value = (element.innerText || element.textContent || "").replace(/\\s+/g, " ").trim();
+    const value = (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
     if (value.length < 18 || value.length > 420) return false;
     if (/i have read up to here/i.test(value)) return false;
     return value.includes("?") || questionWords.test(value);
@@ -146,18 +146,19 @@ function detectQuestion() {
   }
   let context = found;
   while (context.parentElement && context.parentElement !== document.body) {
-    const parentText = (context.parentElement.innerText || "").replace(/\\s+/g, " ").trim();
+    const parentText = (context.parentElement.innerText || "").replace(/\s+/g, " ").trim();
     if (parentText.length > 900) break;
     context = context.parentElement;
   }
   const text = (context.innerText || found.innerText || found.textContent || "")
-    .replace(/\\s+/g, " ").trim().slice(0, 900);
+    .replace(/\s+/g, " ").trim().slice(0, 900);
   state.detectedQuestion = text;
   $("srt-question").textContent = "Detected question/context:\\n" + text;
   $("srt-hint").disabled = false;
   return text;
 }
-\nfunction storageGet() {
+
+function storageGet() {
   return new Promise(resolve => {
     try {
       chrome.storage.local.get([KEY], data => {
