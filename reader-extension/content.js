@@ -6,7 +6,7 @@ window.__sparxReaderTutorLoaded = true;
 const KEY = "sparxReaderTutorSettings";
 const DEFAULT_MODEL = "gemini-3.8-flash";
 const MAX_EXCERPT = 500;
-const state = { running:false, raf:0, last:0, speed:90, seen:new Set(), sending:false };
+const state = { running:false, raf:0, last:0, speed:90, seen:new Set(), sending:false, detectedQuestion:"" };
 
 const css = "#srt-panel{position:fixed;z-index:2147483646;right:18px;top:90px;width:310px;max-height:calc(100vh - 110px);overflow:auto;background:#101827;color:#eaf1ff;border:1px solid #33496c;border-radius:14px;box-shadow:0 14px 45px #0008;font:13px/1.45 system-ui,sans-serif;padding:13px}" +
 "#srt-panel *{box-sizing:border-box}#srt-panel .head{display:flex;align-items:center;justify-content:space-between;font-weight:800;font-size:15px;margin-bottom:9px}" +
@@ -36,8 +36,11 @@ panel.innerHTML = [
 '<label for="srt-speed">Auto-scroll speed: <span id="srt-speed-value">90</span> px/sec</label><input id="srt-speed" type="range" min="20" max="400" value="90">',
 '<div class="row"><button id="srt-start">Start scrolling</button><button class="secondary" id="srt-stop">Pause</button></div>',
 '<div class="status" id="srt-status">Looking for the Sparx Reader area…</div>',
-'<div class="row"><button id="srt-explain">Explain visible excerpt</button><button class="secondary" id="srt-clear">Clear</button></div>',
-'<div class="result" id="srt-result">Gemini explanation appears here.</div>'
+'<div class="row"><button id="srt-explain">Explain excerpt</button><button class="secondary" id="srt-detect">Detect question</button></div>',
+'<div class="status" id="srt-question">No question detected yet.</div>',
+'<button id="srt-hint" style="width:100%" disabled>Get a guided hint</button>',
+'<div class="row"><button class="secondary" id="srt-clear">Clear result</button></div>',
+'<div class="result" id="srt-result">Gemini explanation and hints appear here.</div>'
 ].join("");
 document.documentElement.appendChild(panel);
 
@@ -118,7 +121,43 @@ function visibleExcerpt() {
   }
   return text.replace(/\s+/g, " ").trim().slice(0, MAX_EXCERPT);
 }
-function storageGet() {
+
+function isVisible(element) {
+  const rect = element.getBoundingClientRect();
+  const style = getComputedStyle(element);
+  return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" &&
+    style.display !== "none" && rect.bottom > 0 && rect.top < innerHeight;
+}
+function detectQuestion() {
+  const candidates = [...document.querySelectorAll("h1,h2,h3,p,div,span,label")];
+  const questionWords = /\\b(what|which|who|where|when|why|how|calculate|work out|find|write down|identify|select|explain)\\b/i;
+  const found = candidates.find(element => {
+    if (!isVisible(element)) return false;
+    const value = (element.innerText || element.textContent || "").replace(/\\s+/g, " ").trim();
+    if (value.length < 18 || value.length > 420) return false;
+    if (/i have read up to here/i.test(value)) return false;
+    return value.includes("?") || questionWords.test(value);
+  });
+  if (!found) {
+    state.detectedQuestion = "";
+    $("srt-question").textContent = "No clear question found on screen. Scroll until the question is visible, then try again.";
+    $("srt-hint").disabled = true;
+    return "";
+  }
+  let context = found;
+  while (context.parentElement && context.parentElement !== document.body) {
+    const parentText = (context.parentElement.innerText || "").replace(/\\s+/g, " ").trim();
+    if (parentText.length > 900) break;
+    context = context.parentElement;
+  }
+  const text = (context.innerText || found.innerText || found.textContent || "")
+    .replace(/\\s+/g, " ").trim().slice(0, 900);
+  state.detectedQuestion = text;
+  $("srt-question").textContent = "Detected question/context:\\n" + text;
+  $("srt-hint").disabled = false;
+  return text;
+}
+\nfunction storageGet() {
   return new Promise(resolve => {
     try {
       chrome.storage.local.get([KEY], data => {
@@ -221,7 +260,35 @@ $("srt-start").addEventListener("click", () => {
 $("srt-stop").addEventListener("click", () => stopScroll("Scrolling paused."));
 $("srt-explain").addEventListener("click", () => runGemini(false));
 $("srt-test").addEventListener("click", () => runGemini(true));
-$("srt-clear").addEventListener("click", () => setResult("Gemini explanation appears here."));
+$("srt-detect").addEventListener("click", detectQuestion);
+$("srt-hint").addEventListener("click", async () => {
+  const question = state.detectedQuestion || detectQuestion();
+  if (!question) return;
+  if (state.sending) return;
+  const apiKey = $("srt-key").value.trim();
+  if (!apiKey) { setStatus("Save your Gemini API key first."); return; }
+  state.sending = true;
+  $("srt-hint").disabled = true;
+  $("srt-explain").disabled = true;
+  $("srt-test").disabled = true;
+  setStatus("Gemini is preparing a guided hint…");
+  setResult("Working on a hint. It will explain the idea and guide your next step without giving a checkpoint answer.");
+  const prompt = "You are a patient school tutor. The student is looking at a live learning question. Do NOT give the final answer, calculate the final result, identify the correct multiple-choice option, or tell them what to enter. Instead: (1) explain what the question is asking in simple language, (2) identify the relevant concept or formula, (3) give one small first-step hint, and (4) ask the student to try the next step. If the captured text is not actually a question, say so and explain the relevant passage. Keep it concise and age-appropriate.\\n\\nVisible question and nearby context:\\n" + question;
+  try {
+    const answer = await requestGemini(prompt);
+    setResult(answer);
+    setStatus("Guided hint ready. Work through the next step yourself.");
+  } catch (error) {
+    setResult("Request failed: " + (error.message || String(error)));
+    setStatus("Gemini request failed. See the result box for details.");
+  } finally {
+    state.sending = false;
+    $("srt-hint").disabled = !state.detectedQuestion;
+    $("srt-explain").disabled = false;
+    $("srt-test").disabled = false;
+  }
+});
+$("srt-clear").addEventListener("click", () => setResult("Gemini explanation and hints appear here."));
 
 const observer = new MutationObserver(() => {
   if (state.running && checkpointNear(getArea())) {
