@@ -143,39 +143,49 @@ async function loadSettings() {
   if (saved.apiKey) $("srt-key").value = saved.apiKey;
   if (saved.model) $("srt-model").value = saved.model;
 }
-async function sendToGemini() {
+function requestGemini(prompt) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({
+      type: "SRT_GEMINI_REQUEST",
+      apiKey: $("srt-key").value.trim(),
+      model: $("srt-model").value.trim(),
+      prompt
+    }, response => {
+      const runtimeError = chrome.runtime.lastError;
+      if (runtimeError) return reject(new Error(runtimeError.message));
+      if (!response) return reject(new Error("No reply from the extension background worker. Reload the extension and try again."));
+      if (!response.ok) return reject(new Error(response.error || "Gemini request failed."));
+      resolve(response.answer);
+    });
+  });
+}
+
+async function runGemini(testOnly) {
   if (state.sending) return;
   const apiKey = $("srt-key").value.trim();
   const model = $("srt-model").value.trim();
-  const excerpt = visibleExcerpt();
+  const excerpt = testOnly ? "" : visibleExcerpt();
   if (!apiKey) { setStatus("Paste your Gemini API key and press Save key first."); return; }
   if (!/^[a-zA-Z0-9._-]+$/.test(model)) { setStatus("Invalid model name."); return; }
-  if (!excerpt) { setStatus("No reading text is visible. Scroll to a paragraph first."); return; }
+  if (!testOnly && !excerpt) { setStatus("No reading text is visible. Scroll to a paragraph first."); return; }
 
   state.sending = true;
   $("srt-explain").disabled = true;
   $("srt-test").disabled = true;
-  setStatus("Sending one short visible excerpt to Gemini…");
-  setResult("Waiting for Gemini…");
+  setStatus(testOnly ? "Testing Gemini connection…" : "Sending one short visible excerpt to Gemini…");
+  setResult(testOnly ? "Waiting for Gemini connection test…" : "Waiting for Gemini…");
+  const prompt = testOnly
+    ? "Reply with exactly: Gemini connection successful."
+    : "You are a reading tutor. Explain this short passage in clear, age-appropriate language. Clarify difficult vocabulary and briefly describe what is happening. Do not answer school quiz questions, choose options, or provide checkpoint answers. Use only this excerpt:\\n\\n" + excerpt;
   try {
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" +
-      encodeURIComponent(model) + ":generateContent", {
-      method:"POST",
-      headers:{"Content-Type":"application/json","x-goog-api-key":apiKey},
-      body:JSON.stringify({contents:[{role:"user",parts:[{text:
-        "You are a reading tutor. Explain this short passage in clear, age-appropriate language. Clarify difficult vocabulary and briefly describe what is happening. Do not answer school quiz questions, choose options, or provide checkpoint answers. Use only this excerpt:\\n\\n" + excerpt
-      }]}],generationConfig:{temperature:0.35,maxOutputTokens:300}})
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data && data.error && data.error.message ? data.error.message : "HTTP " + response.status);
-    const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
-    const answer = Array.isArray(parts) ? parts.map(p => p.text || "").join("").trim() : "";
-    if (!answer) throw new Error("Gemini returned no text. Check the model and API key.");
+    const answer = await requestGemini(prompt);
     setResult(answer);
-    setStatus("Gemini replied successfully. Only the visible excerpt was sent.");
+    setStatus(testOnly
+      ? "Gemini connection successful. Your API key and model are working."
+      : "Gemini replied successfully. Only the visible excerpt was sent.");
   } catch (error) {
     setResult("Request failed: " + (error.message || String(error)));
-    setStatus("Gemini request failed. Check API key, model, connection and API access.");
+    setStatus("Gemini request failed. See the result box for the exact reason.");
   } finally {
     state.sending = false;
     $("srt-explain").disabled = false;
@@ -209,8 +219,8 @@ $("srt-start").addEventListener("click", () => {
   state.raf = requestAnimationFrame(frame);
 });
 $("srt-stop").addEventListener("click", () => stopScroll("Scrolling paused."));
-$("srt-explain").addEventListener("click", sendToGemini);
-$("srt-test").addEventListener("click", sendToGemini);
+$("srt-explain").addEventListener("click", () => runGemini(false));
+$("srt-test").addEventListener("click", () => runGemini(true));
 $("srt-clear").addEventListener("click", () => setResult("Gemini explanation appears here."));
 
 const observer = new MutationObserver(() => {
