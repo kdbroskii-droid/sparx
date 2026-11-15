@@ -25,5 +25,8 @@
     "gecko": {
       "id": "sparx-reader-tutor@kdbroskii-droid"
     }
+  },
+  "background": {
+    "service_worker": "background.js"
   }
 }
