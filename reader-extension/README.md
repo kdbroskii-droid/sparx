@@ -7,12 +7,13 @@ A separate browser-extension add-on for Sparx Reader. The existing Sparx Maths f
 - Adjustable auto-scroll with pause controls.
 - Counts paragraphs encountered in the visible area (an estimate, not proof of reading).
 - Test Gemini sends a tiny test prompt without needing a visible passage.
-- Sends only one short currently visible excerpt (maximum 500 characters) to Gemini when you press Explain visible excerpt.
-- Sends Gemini requests through the extension background worker, with a 25-second timeout and readable error messages.
+- Sends only one short currently visible excerpt (maximum 500 characters) to Gemini when you press Explain excerpt.
+- Detects a visible question and nearby context, then asks Gemini for a guided hint that explains the concept and suggests a first step without giving the final answer.
+- Sends Gemini requests through the extension background worker, with a 15-second timeout and readable error messages.
 - Displays Gemini's explanation.
 - Pauses when the “I have read up to here” checkpoint approaches. You click it yourself.
 - Stores your Gemini key locally using browser extension storage.
-- Does not select answers or submit school questions.
+- Does not select answers, reveal final checkpoint answers, or submit school questions.
 
 ## Install in Chrome, Edge or Brave
 1. Download the repository.
@@ -27,7 +28,7 @@ Open `about:debugging`, choose This Firefox, then Load Temporary Add-on and sele
 1. Create your own Gemini API key in Google AI Studio.
 2. Paste it into the panel and press Save key.
 3. The default model is `gemini-3.8-flash`; change it if your account uses another supported text model.
-4. Press Test Gemini first. It checks the API connection without needing a passage. Then scroll to a paragraph and press Explain visible excerpt.
+4. Press Test Gemini first. It checks the API connection without needing a passage. Then scroll to a paragraph and press Explain excerpt, or use Detect question followed by Get a guided hint when a question is visible.
 
 Requests go directly to Google's Gemini API using the `x-goog-api-key` header. The key is stored in local browser extension storage, not sent to this GitHub repository or a project server. Anyone with access to your browser profile may be able to use it.
 
