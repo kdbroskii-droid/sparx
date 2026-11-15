@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Sparx Reader Tutor",
+  "version": "1.0.0",
+  "description": "Explains one short visible Sparx Reader excerpt using your Gemini API key.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://reader.sparx-learning.com/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://reader.sparx-learning.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "sparx-reader-tutor@kdbroskii-droid"
+    }
+  }
+}
